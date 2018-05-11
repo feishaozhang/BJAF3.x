@@ -12,19 +12,27 @@
  */
 package com.beetle.framework.persistence.composite;
 
+import java.util.LinkedList;
+import java.util.List;
+
+import org.apache.commons.lang.StringUtils;
+
 import com.beetle.framework.persistence.access.operator.DBOperatorException;
 import com.beetle.framework.persistence.access.operator.QueryOperator;
 import com.beetle.framework.persistence.access.operator.SqlParameter;
-
-import java.util.LinkedList;
-import java.util.List;
 
 /*
  * 组合条件查询，设置sql语句时，无需指定组合条件参数（查询器会自己拼接），支持无输入参数的where条件语句
  */
 public class CompositeQueryOperator extends QueryOperator {
+    private boolean useNullParameter=true;//是否使用null作为条件查询
 	public CompositeQueryOperator() {
 		super();
+		orderExpression = "";
+	}
+
+	public CompositeQueryOperator(boolean notDesensitize) {
+		super(notDesensitize);
 		orderExpression = "";
 	}
 
@@ -105,22 +113,33 @@ public class CompositeQueryOperator extends QueryOperator {
 	protected void accessImp() throws DBOperatorException {
 		if (!paramList.isEmpty()) {
 			StringBuffer sb = new StringBuffer();
-			for (int i = 0; i < paramList.size(); i++) {
-				V v = (V) paramList.get(i);
-				sb.append("(? is null or " + v.getParameterName() + " " + v.getOperateSymbol() + " ?) and ");
-				super.addParameter(v.getValue());
-				super.addParameter(v.getValue());
-			}
+			if(isUseNullParameter()){
+                for (int i = 0; i < paramList.size(); i++) {
+                    V v = (V) paramList.get(i);
+                    sb.append("(? is null or " + v.getParameterName() + " " + v.getOperateSymbol() + " ?) and ");
+                    super.addParameter(v.getValue());
+                    super.addParameter(v.getValue());
+                }
+            } else {
+                for (int i = 0; i < paramList.size(); i++) {
+                    V v = (V) paramList.get(i);
+                    if(v.getValue()!=null){
+                        sb.append(" " + v.getParameterName() + " " + v.getOperateSymbol() + " ? and ");
+                        super.addParameter(v.getValue());
+                    }
+                }
+            }
+			String sql = this.getSql();
 			String whereStr = sb.toString();
-			int i = whereStr.lastIndexOf("and");
-			whereStr = whereStr.substring(0, i);
-			//
-			String tmpSql = this.getSql().toLowerCase();
-			String sql = "";
-			if (tmpSql.indexOf("where") > 1) {
-				sql = this.getSql() + " and " + whereStr;
-			} else {
-				sql = this.getSql() + " where " + whereStr;
+			if(StringUtils.isNotBlank(whereStr)){
+			    int i = whereStr.lastIndexOf("and");
+			    whereStr = whereStr.substring(0, i);
+			    String tmpSql = this.getSql().toLowerCase();
+			    if (tmpSql.indexOf("where") > 1) {
+			        sql = sql + " and " + whereStr;
+			    } else {
+			        sql = sql + " where " + whereStr;
+			    }
 			}
 			if (orderExpression.length() > 1) {
 				sql = sql + " " + orderExpression.toLowerCase();
@@ -133,5 +152,13 @@ public class CompositeQueryOperator extends QueryOperator {
 		}
 		super.accessImp();
 	}
+
+    public boolean isUseNullParameter() {
+        return useNullParameter;
+    }
+
+    public void setUseNullParameter(boolean useNullParameter) {
+        this.useNullParameter = useNullParameter;
+    }
 
 }
